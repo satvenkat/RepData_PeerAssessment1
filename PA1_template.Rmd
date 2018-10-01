@@ -1,25 +1,108 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "ReproducibleResearchCourseProject-Satish"
+author: "Satish Venkataraman"
+date: "September 30, 2018"
+output: html_document
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+r <- getOption("repos")
+r["CRAN"] <- "http://cran.cnr.berkeley.edu/"
+options(repos = r)
 
-## Loading and preprocessing the data
-
-
-
-## What is mean total number of steps taken per day?
-
-
-
-## What is the average daily activity pattern?
-
-
-
-## Imputing missing values
+if(!require(Hmisc)){
+  install.packages("Hmisc")
+}
+library(Hmisc)
+```
 
 
+##1. Code for reading in the dataset and/or processing the data
 
-## Are there differences in activity patterns between weekdays and weekends?
+        Download the file and unzip it to your current working directory.
+```{r cache=TRUE}
+if(!file.exists("data")){dir.create("data")}
+fileUrl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+download.file(fileUrl, destfile = "./data/repdata.zip")
+unzip("./data/repdata.zip")
+repData <- read.table("./activity.csv", header = TRUE, sep = ",")
+repData$interval<-as.numeric(repData$interval)
+repData$steps<-as.numeric(repData$steps)
+repData$date<-as.Date(repData$date)
+stepsByDay<-aggregate(repData$steps, by=list(repData$date), sum)
+colnames(stepsByDay) <- c("dates", "totalSteps")
+#stepsByDay$dates<-as.Date(stepsByDay$dates)
+
+
+```
+
+##2. Histogram of the total number of steps taken each day
+
+```{r}
+
+ hist(stepsByDay$totalSteps,main="Histogram for Total Steps", 
+      xlab="day", 
+      border="blue", 
+      col="green")
+#Not sure if they asked for a bar plot since it says number of steps by day, so here goes...
+barplot(stepsByDay$totalSteps,names.arg=stepsByDay$dates,main = "Steps By Day", xlab = "Date", ylab = "Total Steps", col = "light green")
+```
+
+##3. Mean and median number of steps taken each day
+```{r}
+statsByDF <- function(x) {
+  c(min = min(x), max = max(x), 
+    mean = mean(x), median = median(x), 
+    std = sd(x))
+}
+tapply(repData$steps,repData$date,statsByDF)
+```
+
+##4. Time series plot of the average number of steps taken
+```{r}
+timeSeries <- tapply(repData$steps, repData$interval, mean, na.rm = TRUE)
+
+plot(row.names(timeSeries), timeSeries, type = "l", xlab = "5-min interval", 
+    ylab = "Average across all Days", main = "Average number of steps", 
+    col = "green")
+```
+
+##5. The 5-minute interval that, on average, contains the maximum number of steps
+```{r}
+names(which.max(timeSeries))
+```
+
+##6. Code to describe and show a strategy for imputing missing data
+```{r}
+#Making a copy of the data to look at missing values.  Using the mean to impute the missing values
+
+repData.mis<-repData
+summary(repData.mis) # This shows 2304 NA values for steps
+repData.mis$imputed_steps <- with(repData.mis, impute(steps, mean))
+summary(repData.mis) #Checking if the NA values are still shown
+```
+
+
+
+##7. Histogram of the total number of steps taken each day after missing values are imputed
+```{r}
+stepsByDayPostImpute<-aggregate(repData.mis$imputed_steps, by=list(repData.mis$date), sum)
+colnames(stepsByDayPostImpute) <- c("dates", "totalSteps")
+ hist(stepsByDayPostImpute$totalSteps,main="Histogram for Total Steps", 
+      xlab="day", 
+      border="blue", 
+      col="green")
+#Not sure if they asked for a bar plot since it says number of steps by day, so here goes...
+barplot(stepsByDayPostImpute$totalSteps,names.arg=stepsByDayPostImpute$dates,main = "Steps By Day", xlab = "Date", ylab = "Total Steps", col = "light green")
+```
+##8. Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+
+```{r}
+weekdays1 <- c('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')
+repData.mis$wDay <- factor((weekdays(repData.mis$date) %in% weekdays1), levels=c(FALSE, TRUE), labels=c('weekend', 'weekday'))
+
+stepsByDayNew <- aggregate(imputed_steps ~ interval + wDay, data = repData.mis, mean)
+names(stepsByDayNew) <- c("interval", "daylevel", "steps")
+xyplot(steps ~ interval | daylevel, stepsByDayNew, type = "l", layout = c(1, 2), xlab = "Interval", ylab = "Number of steps")
+```
